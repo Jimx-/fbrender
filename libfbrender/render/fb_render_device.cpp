@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <unistd.h>
 #include <fcntl.h>
 #include <linux/fb.h>
@@ -32,7 +33,7 @@ namespace fbrender {
 
         fptr = fd;
         fbp = framebuffer;
-        init(vinfo.xres, vinfo.yres, framebuffer);
+        init(vinfo.xres, vinfo.yres);
     }
 
     FBRenderDevice::~FBRenderDevice()
@@ -41,6 +42,11 @@ namespace fbrender {
             munmap(fbp, screensize);
         }
         if (fptr > 0) close(fptr);
+    }
+
+    void FBRenderDevice::copy_buffer(const void* buffer, size_t size)
+    {
+        memcpy(fbp, buffer, size);
     }
 }
 

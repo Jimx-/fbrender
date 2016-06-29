@@ -36,18 +36,19 @@ void draw_box(RenderDevice* device, Real theta)
 
 int main()
 {
-    fbrender::FBRenderDevice device("/dev/fb0");
-    device.set_view(Matrix4::lookat({3, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 1, 1}));
-    device.set_drawing_state(RenderDevice::DS_COLOR);
+    fbrender::RenderDevice* device = new fbrender::FBRenderDevice("/dev/fb0");
+    device->set_view(Matrix4::lookat({3, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 1, 1}));
+    device->set_drawing_state(RenderDevice::DS_COLOR);
 
     struct timespec ts;
     ts.tv_sec = 100 / 1000;
     ts.tv_nsec = (100 % 1000) * 1000000;
 
     for (int i = 0; i < 10000; i++) {
-        device.clear();
-        draw_box(&device, i/100.0);
-        nanosleep(&ts, NULL);
+        device->clear();
+        draw_box(device, i/100.0);
+        device->swap_buffers();
+        //nanosleep(&ts, NULL);
     }
     return 0;
 }

@@ -14,7 +14,8 @@ namespace fbrender {
         RenderDevice() 
         { 
             initialized = false; 
-            framebuffer = nullptr;
+            framebuffer[0] = framebuffer[1] = nullptr;
+            pixel_buffer = nullptr;
             zbuffer = nullptr;
         }
 
@@ -31,11 +32,17 @@ namespace fbrender {
         void draw_pixel(int x, int y, uint32_t color);
         void draw_line(int x1, int y1, int x2, int y2, uint32_t color);
         void draw_triangle(const Vertex& v1, const Vertex& v2, const Vertex& v3);
+        void swap_buffers();
     private:
         Transform transform;
         int width;
         int height;
-        uint32_t** framebuffer;
+
+        uint32_t* pixel_buffer;
+        uint32_t** framebuffer[2];
+        size_t framebuffer_size;
+        int buffer_index;
+
         Real** zbuffer;
         int drawing_state;
         bool initialized;
@@ -50,7 +57,9 @@ namespace fbrender {
         void draw_triangle_bottom(const Vertex& v1, const Vertex& v2, const Vertex& v3);
         void draw_scan_line(const Vertex& left, const Vertex& right, int y_index);
     protected:
-        void init(int width, int height, void* fb);
+        void init(int width, int height);
+
+        virtual void copy_buffer(const void* buffer, size_t size) = 0;
     };
 }
 

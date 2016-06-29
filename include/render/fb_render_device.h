@@ -14,6 +14,8 @@ namespace fbrender {
         int fptr;
         char* fbp;
         long screensize;
+
+        virtual void copy_buffer(const void* buffer, size_t size);
     };
 }
 

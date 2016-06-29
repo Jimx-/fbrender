@@ -2,24 +2,39 @@
 
 #include <vector>
 #include <algorithm>
-#include <iostream>
-using namespace std;
+#include <sys/mman.h>
+
 namespace fbrender {
     
-    void RenderDevice::init(int width, int height, void* fb)
+    void RenderDevice::init(int width, int height)
     {
-        char* pfb = (char*)fb;
+        framebuffer_size = height * width * sizeof(uint32_t);
 
-        if (framebuffer) delete [] framebuffer;
-        if (zbuffer) delete [] zbuffer;
+        delete framebuffer[0];
+        delete framebuffer[1];
+        delete [] pixel_buffer;
+        delete [] zbuffer;
 
-        framebuffer = new uint32_t*[height];
+        framebuffer[0] = new uint32_t*[height];
+        framebuffer[1] = new uint32_t*[height];
         zbuffer = new Real*[height];
 
+        pixel_buffer = (uint32_t *) mmap (0, framebuffer_size * 2, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0); 
+        if (pixel_buffer == MAP_FAILED) {
+            pixel_buffer = nullptr;
+        }
+
+        char* pfb = (char*) pixel_buffer;
         for (int i = 0; i < height; i++) {
-            framebuffer[i] = (uint32_t*)(pfb + width * sizeof(uint32_t) * i);
+            framebuffer[0][i] = (uint32_t*)(pfb + width * sizeof(uint32_t) * i);
             zbuffer[i] = new Real[width]();
         }
+        pfb += framebuffer_size;
+        for (int i = 0; i < height; i++) {
+            framebuffer[1][i] = (uint32_t*)(pfb + width * sizeof(uint32_t) * i);
+        }
+
+        buffer_index = 0;
 
         this->width = width;
         this->height = height;
@@ -33,24 +48,35 @@ namespace fbrender {
 
     RenderDevice::~RenderDevice()
     {
-        if (framebuffer) delete [] framebuffer;
-        if (zbuffer) delete [] zbuffer;
+        delete framebuffer[0];
+        delete framebuffer[1];
+        delete [] zbuffer;
+        if (pixel_buffer) munmap(pixel_buffer, framebuffer_size * 2);
     }
 
     void RenderDevice::clear()
     {
         for (int i = 0; i < height; i++) {
             for (int j = 0; j < width; j++) {
-                framebuffer[i][j] = background;
+                framebuffer[buffer_index][i][j] = background;
                 zbuffer[i][j] = 0.0;
             }
         }
     }
 
+    void RenderDevice::swap_buffers()
+    {
+        char* pfb = (char*)pixel_buffer;
+        pfb += buffer_index * framebuffer_size;
+        copy_buffer(pfb, framebuffer_size);
+
+        buffer_index = 1 - buffer_index;
+    }
+
     void RenderDevice::draw_pixel(int x, int y, uint32_t color)
     {
         if (x < width && y < height) {
-            framebuffer[y][x] = color;
+            framebuffer[buffer_index][y][x] = color;
         }
     }
 
