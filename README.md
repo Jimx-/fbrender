@@ -16,6 +16,7 @@ Build the project
 mkdir build
 cd build
 cmake ..
+make
 ```
 
 Before running the programs, switch to framebuffer console with Ctrl-Alt-F1
