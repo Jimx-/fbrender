@@ -73,6 +73,9 @@ namespace fbrender {
             return r;
         }
 
+        Matrix4 transpose() const;
+        Matrix4 inverse() const;
+
         static Matrix4 translate(Real x, Real y, Real z)
         {
             Matrix4 r = IDENTITY;

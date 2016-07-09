@@ -8,11 +8,38 @@ namespace fbrender {
     struct Color {
         Real r, g, b;
 
-        Color(Real r, Real g, Real b) : r(r), g(b), b(b) { }
+#define CLAMP(x, a, b) (((x) < (a)) ? (a) : (((x) > (b)) ? (b) : (x)))
+        Color(Real r = 0.0, Real g = 0.0, Real b = 0.0)
+        {
+            this->r = CLAMP(r, 0, 1);
+            this->g = CLAMP(g, 0, 1);
+            this->b = CLAMP(b, 0, 1);
+        }
+
+        Color(uint32_t val)
+        {
+            int rc = (val >> 16) & 0xff;
+            int gc = (val >> 8) & 0xff;
+            int bc = (val) & 0xff;
+
+            this->r = CLAMP(rc / 255.0, 0, 1);
+            this->g = CLAMP(gc / 255.0, 0, 1);
+            this->b = CLAMP(bc / 255.0, 0, 1);
+        }
 
         Color operator*(Real f) const
         {
             return Color(r * f, g * f, b * f);
+        }
+
+        Color operator+(const Color& c) const
+        {
+            return Color(r + c.r, g + c.g, b + c.b);
+        }
+
+        Color operator*(const Color& c) const
+        {
+            return Color(r * c.r, g * c.g, b * c.b);
         }
 
         Color& operator*=(Real f)
@@ -52,6 +79,7 @@ namespace fbrender {
     class Vertex {
     private:
         Color _color;
+        Color _lighting_color;
         Vector4 _pos;
         TexCoord _tex;
         Real invw;
@@ -69,9 +97,17 @@ namespace fbrender {
             if (_pos.w != 0.0) invw = 1.0 / _pos.w;
         }
 
+        Vertex(const Vector4& pos, const TexCoord& tex, const Color& color, const Color& lighting_color)
+            : _pos(pos), _tex(tex), _color(color), _lighting_color(lighting_color)
+        {
+            if (_pos.w != 0.0) invw = 1.0 / _pos.w;
+        }
+
         const Color& get_color() const { return _color; }
         const Vector4& get_pos() const { return _pos; }
         const TexCoord& get_texcoord() const { return _tex; }
+        void set_lighting_color(const Color& color) { _lighting_color = color; }
+        const Color& get_lighting_color() const { return _lighting_color; }
         Real get_one_per_w() const { return invw; }
         void set_one_per_w(Real inv) { invw = inv; }
 
@@ -84,6 +120,10 @@ namespace fbrender {
             _color.r = LERP(v1._color.r, v2._color.r, t);
             _color.g = LERP(v1._color.g, v2._color.g, t);
             _color.b = LERP(v1._color.b, v2._color.b, t);
+
+            _lighting_color.r = LERP(v1._lighting_color.r, v2._lighting_color.r, t);
+            _lighting_color.g = LERP(v1._lighting_color.g, v2._lighting_color.g, t);
+            _lighting_color.b = LERP(v1._lighting_color.b, v2._lighting_color.b, t);
 
             invw = LERP(v1.invw, v2.invw, t);
 #undef LERP

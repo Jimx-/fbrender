@@ -18,7 +18,7 @@ namespace fbrender {
 
     Vertex Transform::apply_mv_transform(const Vertex& v)
     {
-        return Vertex(v.get_pos() * transform, v.get_texcoord(), v.get_color());
+        return Vertex(v.get_pos() * transform, v.get_texcoord(), v.get_color(), v.get_lighting_color());
     }
 
     Vertex Transform::apply_projection(const Vertex& v)
@@ -26,12 +26,14 @@ namespace fbrender {
         Vector4 pos = v.get_pos() * projection;
         TexCoord tex = v.get_texcoord();
         Color color = v.get_color();
+        Color lighting_color = v.get_lighting_color();
         
         Real invw = 1.0 / pos.w;
         tex *= invw;
         color *= invw;
+        lighting_color *= invw;
 
-        return Vertex(pos, tex, color);
+        return Vertex(pos, tex, color, lighting_color);
     }
 
     void Transform::update()
@@ -63,7 +65,7 @@ namespace fbrender {
         Real x = (vec.x * invecw + 1.0) * width * 0.5;
         Real y = (1.0 - vec.y * invecw) * height * 0.5;
         Real z = vec.z * invecw;
-        Vertex r(Vector4(x, y, z, 1.0), v.get_texcoord(), v.get_color());
+        Vertex r(Vector4(x, y, z, 1.0), v.get_texcoord(), v.get_color(), v.get_lighting_color());
         r.set_one_per_w(invecw);
 
         return r;

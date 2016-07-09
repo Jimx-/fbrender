@@ -2,8 +2,12 @@
 
 #include <time.h>
 #include <unistd.h>
+#include <cmath>
 
 using namespace fbrender;
+
+#define TEX_HEIGHT  256
+#define TEX_WIDTH   256
 
 Vertex mesh[] = {
     {   1, -1,  1, 1, 0, 0, 1.0f, 0.2f, 0.2f  },
@@ -34,11 +38,31 @@ void draw_box(RenderDevice* device, Real theta)
 	draw_plane(device, 3, 7, 4, 0);
 }
 
+void init_texture(uint32_t* tex)
+{
+    for (int j = 0; j < TEX_HEIGHT; j++) {
+        for (int i = 0; i < TEX_WIDTH; i++) {
+            tex[j * TEX_WIDTH + i] = ((i / 32 + j / 32) & 1) ? 0xff : 0xffffffff;
+        }
+    }
+}
+
 int main()
 {
     fbrender::RenderDevice* device = new fbrender::FBRenderDevice("/dev/fb0");
-    device->set_view(Matrix4::lookat({3, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 1, 1}));
-    device->set_drawing_state(RenderDevice::DS_COLOR);
+    device->set_camera({4, 0, 0, 1}, {0, 0, 0, 1}, {0, 0, 1, 1});
+    device->enable(RenderDevice::DS_TEXTURE_2D);
+    device->set_texture_filter(RenderDevice::TF_NEAREST);
+    device->enable(RenderDevice::DS_LIGHTING);
+    device->set_light_pos({100, -300, 500, 1});
+    device->set_light_diffuse({0.5, 0.5, 0.5});
+    device->set_light_ambient({0.5, 0.5, 0.5});
+    device->set_material_diffuse({0.3, 0.3, 0.3});
+    device->clear_color({0.2, 0.2, 0.3});
+
+    uint32_t* texture = new uint32_t[TEX_HEIGHT * TEX_WIDTH];
+    init_texture(texture);
+    device->texture_image_2d(TEX_WIDTH, TEX_HEIGHT, RenderDevice::CF_RGBA, texture);
 
     struct timespec ts;
     ts.tv_sec = 100 / 1000;

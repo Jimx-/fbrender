@@ -3,11 +3,14 @@
 #include <vector>
 #include <algorithm>
 #include <sys/mman.h>
+#include <iostream>
+using namespace std;
 
 namespace fbrender {
     
     void RenderDevice::init(int width, int height)
     {
+        /* allocate framebuffer and z-buffer */
         framebuffer_size = height * width * sizeof(uint32_t);
 
         delete framebuffer[0];
@@ -43,14 +46,29 @@ namespace fbrender {
         background = 0;
         foreground = 0xffffffff;
 
-        drawing_state = DS_WIREFRAME;
+        /* lighting parameter */
+        light_pos = {50, 0, 0};
+
+        /* texture parameter */
+        tex_filter = TF_NEAREST;
+
+        drawing_state = 0;
     }
 
     RenderDevice::~RenderDevice()
     {
         delete framebuffer[0];
         delete framebuffer[1];
+
+        if (zbuffer) {
+            for (int i = 0; i < height; i++) {
+                if (zbuffer[i]) delete [] zbuffer[i];
+            }
+        }
         delete [] zbuffer;
+
+        clear_texbuffer();
+
         if (pixel_buffer) munmap(pixel_buffer, framebuffer_size * 2);
     }
 
@@ -62,6 +80,60 @@ namespace fbrender {
                 zbuffer[i][j] = 0.0;
             }
         }
+    }
+
+    void RenderDevice::clear_color(const Color& c)
+    {
+        background = c.color_value();
+    }
+
+    void RenderDevice::set_camera(const Vector4& pos, const Vector4& at, const Vector4& up)
+    {
+        transform.set_view(Matrix4::lookat(pos, at, up));
+        camera_pos = pos;
+    }
+
+    void RenderDevice::clear_texbuffer()
+    {
+        if (texbuffer) {
+            for (int i = 0; i < tex_height; i++) {
+                if (texbuffer[i]) delete [] texbuffer[i];
+            }
+        }
+        delete [] texbuffer;
+        texbuffer = nullptr;
+    }
+
+    void RenderDevice::texture_image_2d(int width, int height, int format, const void* tex)
+    {
+        if (texbuffer) clear_texbuffer();
+
+        char* tp = (char*)tex;
+        if (width <= 0 || height <= 0) return;
+        texbuffer = new uint32_t*[height];
+
+        size_t size;
+        switch (format) {
+            case CF_RGB:
+                size = 3;
+                break;
+            case CF_RGBA:
+                size = 4;
+                break;
+        }
+
+        for (int i = 0; i < height; i++) {
+            uint32_t* line = new uint32_t[width];
+            for (int j = 0; j < width; j++) {
+                line[j] = *(uint32_t*)tp;
+                tp += size;
+            }
+
+            texbuffer[i] = line;
+        }
+
+        tex_height = height;
+        tex_width = width;
     }
 
     void RenderDevice::swap_buffers()
@@ -124,9 +196,24 @@ namespace fbrender {
 
     void RenderDevice::draw_triangle(const Vertex& v1, const Vertex& v2, const Vertex& v3)
     {
-        Vertex p1 = transform.apply_mv_transform(v1); 
-        Vertex p2 = transform.apply_mv_transform(v2); 
-        Vertex p3 = transform.apply_mv_transform(v3);
+        Vertex p1 = v1;
+        Vertex p2 = v2;
+        Vertex p3 = v3;
+
+        if (drawing_state & DS_LIGHTING) {
+            Vector4 vec1 = p2.get_pos() - p1.get_pos();
+            Vector4 vec2 = p3.get_pos() - p2.get_pos();
+
+            Vector4 normal = vec1.cross_product(vec2);
+
+            lighting(p1, normal);
+            lighting(p2, normal);
+            lighting(p3, normal);
+        }
+
+        p1 = transform.apply_mv_transform(p1); 
+        p2 = transform.apply_mv_transform(p2); 
+        p3 = transform.apply_mv_transform(p3);
 
         if (!back_face_test(p1, p2, p3)) return;
 
@@ -142,7 +229,7 @@ namespace fbrender {
         p2 = transform.homogenize(c2);
         p3 = transform.homogenize(c3);
 
-        if (drawing_state & DS_COLOR) {
+        if (drawing_state & (DS_COLOR | DS_TEXTURE_2D)) {
             rasterize_triangle(p1, p2, p3);  
         } 
         if (drawing_state & DS_WIREFRAME) {
@@ -286,8 +373,12 @@ namespace fbrender {
     {
         const Vector4& lp = left.get_pos();
         const Vector4& rp = right.get_pos();
+        const TexCoord& lvt = left.get_texcoord();
+        const TexCoord& rvt = right.get_texcoord();
         const Color& lvc = left.get_color();
         const Color& rvc = right.get_color();
+        const Color& lvlc = left.get_lighting_color();
+        const Color& rvlc = right.get_lighting_color();
         
         Real dx = rp.x - lp.x;
         for (Real x = lp.x; x <= rp.x; x += (Real)0.5) {
@@ -305,16 +396,60 @@ namespace fbrender {
                     Real w = 1 / invw;
                     zbuffer[y_index][x_index] = invw;
 
+                    Real u = LERP(lvt.u, rvt.u, t) * w * (tex_width - 1);
+                    Real v = LERP(lvt.v, rvt.v, t) * w * (tex_height - 1);
+
+                    Color tex_color;
+                    if (drawing_state & DS_TEXTURE_2D) {
+                        if (tex_filter == TF_NEAREST) {
+                            int ui = ROUND_AWAY_FROM_ZERO(u);
+                            int vi = ROUND_AWAY_FROM_ZERO(v);
+                            
+                            ui = ui <= 0 ? 0 : ui >= tex_width ? (tex_width - 1) : ui;
+                            vi = vi <= 0 ? 0 : vi >= tex_height ? (tex_height - 1) : vi;
+                            tex_color = Color(texbuffer[vi][ui]);
+                        }
+                    }
+
                     Color vcolor = Color(LERP(lvc.r, rvc.r, t) * w,
                             LERP(lvc.g, rvc.g, t) * w,
                             LERP(lvc.b, rvc.b, t) * w);
 
+                    if (drawing_state & DS_LIGHTING) {
+                        Color lcolor = Color(LERP(lvlc.r, rvlc.r, t) * w,
+                                LERP(lvlc.g, rvlc.g, t) * w,
+                                LERP(lvlc.b, rvlc.b, t) * w);
+                        vcolor = vcolor * lcolor;
+                        tex_color = tex_color * lcolor;
+                    }
+
                     if (drawing_state & DS_COLOR) {
                         draw_pixel(x_index, y_index, vcolor.color_value());
+                    } else if (drawing_state & DS_TEXTURE_2D) {
+                        draw_pixel(x_index, y_index, tex_color.color_value());
                     }
                 }
             }
         }
+    }
+
+    void RenderDevice::lighting(Vertex& v, const Vector4& _normal)
+    {
+        const Matrix4& m = transform.get_world();
+        Vector4 normal = _normal * m.inverse().transpose();
+        normal.normalize(); 
+
+        Vector4 world_pos = v.get_pos() * m;
+        Vector4 light_dir = world_pos - light_world_pos;
+        light_dir.normalize();
+
+        Real kdiffuse = light_dir.dot_product(normal);
+        if (kdiffuse < 0) kdiffuse = 0;
+
+        Color diffuse = material_diffuse * kdiffuse + diffuse_color * kdiffuse;
+
+        Color color = diffuse + ambient_color;
+        v.set_lighting_color(color);
     }
 
 }
