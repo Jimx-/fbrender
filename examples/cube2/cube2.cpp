@@ -42,7 +42,8 @@ void init_texture(uint32_t* tex)
 {
     for (int j = 0; j < TEX_HEIGHT; j++) {
         for (int i = 0; i < TEX_WIDTH; i++) {
-            tex[j * TEX_WIDTH + i] = ((i / 32 + j / 32) & 1) ? 0xff : 0xffffffff;
+            //tex[j * TEX_WIDTH + i] = ((i / 32 + j / 32) & 1) ? 0xff : 0xffffffff;
+            tex[j * TEX_WIDTH + i] = 0xffffff;
         }
     }
 }

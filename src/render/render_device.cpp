@@ -91,6 +91,7 @@ namespace fbrender {
     {
         transform.set_view(Matrix4::lookat(pos, at, up));
         camera_pos = pos;
+        camera_world_pos = camera_pos * transform.get_world();
     }
 
     void RenderDevice::clear_texbuffer()
@@ -200,16 +201,15 @@ namespace fbrender {
         Vertex p2 = v2;
         Vertex p3 = v3;
 
-        if (drawing_state & DS_LIGHTING) {
-            Vector4 vec1 = p2.get_pos() - p1.get_pos();
-            Vector4 vec2 = p3.get_pos() - p2.get_pos();
+        Vector4 edge1 = p2.get_pos() - p1.get_pos();
+        Vector4 edge2 = p3.get_pos() - p2.get_pos();
 
-            Vector4 normal = vec1.cross_product(vec2);
-
-            lighting(p1, normal);
-            lighting(p2, normal);
-            lighting(p3, normal);
-        }
+        Vector4 _normal = edge1.cross_product(edge2);
+        const Matrix4& mw = transform.get_world();
+        Vector4 normal = _normal * mw.inverse().transpose();
+        p1.set_normal(normal);
+        p2.set_normal(normal);
+        p3.set_normal(normal);
 
         p1 = transform.apply_mv_transform(p1); 
         p2 = transform.apply_mv_transform(p2); 
@@ -377,8 +377,10 @@ namespace fbrender {
         const TexCoord& rvt = right.get_texcoord();
         const Color& lvc = left.get_color();
         const Color& rvc = right.get_color();
-        const Color& lvlc = left.get_lighting_color();
-        const Color& rvlc = right.get_lighting_color();
+        const Vector4& lwp = left.get_world_pos();
+        const Vector4& rwp = right.get_world_pos();
+        const Vector4& lnm = left.get_normal();
+        const Vector4& rnm = right.get_normal();
         
         Real dx = rp.x - lp.x;
         for (Real x = lp.x; x <= rp.x; x += (Real)0.5) {
@@ -415,10 +417,22 @@ namespace fbrender {
                             LERP(lvc.g, rvc.g, t) * w,
                             LERP(lvc.b, rvc.b, t) * w);
 
+                    Vector4 world_pos = Vector4::lerp(lwp, rwp, t) * w;
+                    Vector4 normal = Vector4::lerp(lnm, rnm, t) * w;
+
+                    normal.normalize(); 
+
+                    Vector4 light_dir = world_pos - light_world_pos;
+                    light_dir.normalize();
+
+                    Real kdiffuse = light_dir.dot_product(normal);
+                    if (kdiffuse < 0) kdiffuse = 0;
+
+                    Color diffuse = material_diffuse * kdiffuse + diffuse_color * kdiffuse;
+
+                    Color lcolor = diffuse + ambient_color;
+
                     if (drawing_state & DS_LIGHTING) {
-                        Color lcolor = Color(LERP(lvlc.r, rvlc.r, t) * w,
-                                LERP(lvlc.g, rvlc.g, t) * w,
-                                LERP(lvlc.b, rvlc.b, t) * w);
                         vcolor = vcolor * lcolor;
                         tex_color = tex_color * lcolor;
                     }
@@ -431,25 +445,6 @@ namespace fbrender {
                 }
             }
         }
-    }
-
-    void RenderDevice::lighting(Vertex& v, const Vector4& _normal)
-    {
-        const Matrix4& m = transform.get_world();
-        Vector4 normal = _normal * m.inverse().transpose();
-        normal.normalize(); 
-
-        Vector4 world_pos = v.get_pos() * m;
-        Vector4 light_dir = world_pos - light_world_pos;
-        light_dir.normalize();
-
-        Real kdiffuse = light_dir.dot_product(normal);
-        if (kdiffuse < 0) kdiffuse = 0;
-
-        Color diffuse = material_diffuse * kdiffuse + diffuse_color * kdiffuse;
-
-        Color color = diffuse + ambient_color;
-        v.set_lighting_color(color);
     }
 
 }

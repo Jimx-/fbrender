@@ -81,6 +81,7 @@ namespace fbrender {
         uint32_t foreground;
 
         Vector4 camera_pos;
+        Vector4 camera_world_pos;
         Vector4 light_pos;
         Vector4 light_world_pos;
         /* light colors */

@@ -79,9 +79,10 @@ namespace fbrender {
     class Vertex {
     private:
         Color _color;
-        Color _lighting_color;
         Vector4 _pos;
         TexCoord _tex;
+        Vector4 _normal;
+        Vector4 _world_pos;
         Real invw;
 
     public:
@@ -97,8 +98,8 @@ namespace fbrender {
             if (_pos.w != 0.0) invw = 1.0 / _pos.w;
         }
 
-        Vertex(const Vector4& pos, const TexCoord& tex, const Color& color, const Color& lighting_color)
-            : _pos(pos), _tex(tex), _color(color), _lighting_color(lighting_color)
+        Vertex(const Vector4& pos, const TexCoord& tex, const Color& color, const Vector4& world_pos, const Vector4& normal)
+            : _pos(pos), _tex(tex), _color(color), _world_pos(world_pos), _normal(normal)
         {
             if (_pos.w != 0.0) invw = 1.0 / _pos.w;
         }
@@ -106,8 +107,9 @@ namespace fbrender {
         const Color& get_color() const { return _color; }
         const Vector4& get_pos() const { return _pos; }
         const TexCoord& get_texcoord() const { return _tex; }
-        void set_lighting_color(const Color& color) { _lighting_color = color; }
-        const Color& get_lighting_color() const { return _lighting_color; }
+        const Vector4& get_normal() const { return _normal; }
+        const Vector4& get_world_pos() const { return _world_pos; }
+        void set_normal(const Vector4& n) { _normal = n; }
         Real get_one_per_w() const { return invw; }
         void set_one_per_w(Real inv) { invw = inv; }
 
@@ -121,9 +123,13 @@ namespace fbrender {
             _color.g = LERP(v1._color.g, v2._color.g, t);
             _color.b = LERP(v1._color.b, v2._color.b, t);
 
-            _lighting_color.r = LERP(v1._lighting_color.r, v2._lighting_color.r, t);
-            _lighting_color.g = LERP(v1._lighting_color.g, v2._lighting_color.g, t);
-            _lighting_color.b = LERP(v1._lighting_color.b, v2._lighting_color.b, t);
+            _world_pos.x = LERP(v1._world_pos.x, v2._world_pos.x, t);
+            _world_pos.y = LERP(v1._world_pos.y, v2._world_pos.y, t);
+            _world_pos.z = LERP(v1._world_pos.z, v2._world_pos.z, t);
+
+            _normal.x = LERP(v1._normal.x, v2._normal.x, t);
+            _normal.y = LERP(v1._normal.y, v2._normal.y, t);
+            _normal.z = LERP(v1._normal.z, v2._normal.z, t);
 
             invw = LERP(v1.invw, v2.invw, t);
 #undef LERP

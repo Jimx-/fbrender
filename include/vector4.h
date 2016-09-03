@@ -50,6 +50,15 @@ namespace fbrender {
             return Vector4(x * f, y * f, z * f, w * f);
         }
 
+        Vector4& operator*=(Real f)
+        {
+            x *= f;
+            y *= f;
+            z *= f;
+            w *= f;
+            return *this;
+        }
+
         Real dot_product(const Vector4& v) const
         {
             return x * v.x + y * v.y + z * v.z;
@@ -80,6 +89,11 @@ namespace fbrender {
                 z *= inv;
                 w *= inv;
             }
+        }
+
+        static Vector4 lerp(const Vector4& l, const Vector4& r, float t) 
+        {
+            return r * t + l * (1 - t);
         }
 
         static Vector4 ZERO;
